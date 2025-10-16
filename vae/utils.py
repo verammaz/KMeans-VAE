@@ -27,6 +27,11 @@ def setup_logging(config):
     # log the config itself
     with open(os.path.join(out_dir, 'config.json'), 'w') as f:
         f.write(json.dumps(config.to_dict(), indent=4))
+    # log data metadata
+    with open(os.path.join(config.data.data_dir, "metadata.json")) as f:
+        meta = json.load(f)
+    with open(os.path.join(out_dir, 'data.json'), 'w') as f:
+        f.write(json.dump(meta, f, indent=4))
 
 class CfgNode:
     """ a lightweight configuration class inspired by yacs """

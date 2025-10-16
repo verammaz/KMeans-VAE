@@ -9,7 +9,7 @@ import json
 import torch
 from torch.utils.data import TensorDataset
 
-from vae.vae import VAE
+from vae.model import VAE
 from vae.trainer import Trainer
 from data.data_io import load_and_split
 from vae.utils import set_seed, setup_logging, CfgNode as CN
@@ -61,6 +61,29 @@ if __name__ == "__main__":
     # Set seed
     set_seed(config.system.seed)
     
+        # Load training data
+    print(f"Loading dataset from {config.data.data_dir}")
+    data = load_and_split(
+        config.data.data_dir,
+        splits=(0.85, 0.0, 0.15),
+        seed=config.system.seed,
+        normalize=True,
+        save_manifest=True
+    )
+    
+    X_train = torch.tensor(data["X_train"], dtype=torch.float32)
+    y_train = torch.tensor(data["y_train"], dtype=torch.long)
+    X_test = torch.tensor(data["X_test"], dtype=torch.float32)
+    y_test = torch.tensor(data["y_test"], dtype=torch.long)
+    
+    print(f"Train set: {X_train.shape[0]} samples, {X_train.shape[1]} features")
+    print(f"Test set:  {X_test.shape[0]} samples")
+    print(f"Classes:   {len(torch.unique(y_train))}")
+    print()
+
+    input_dim = X_train.shape[1]
+    k = len(torch.unique(y_train))
+
     # Initialize wandb if enabled
     wandb_run = None
     if config.wandb.enabled:
@@ -69,8 +92,8 @@ if __name__ == "__main__":
             
             # Auto-generate run name if not provided
             if config.wandb.name is None:
-                dataset_name = 'gaussian' if 'gaussian' in config.data.data_dir else 'bernoulli'
-                config.wandb.name = f"vae_{dataset_name}_z{config.model.latent_dim}_beta{config.model.kl_beta}"
+                dataset_name = 'gaus' if 'gaussian' in config.data.data_dir else 'ber'
+                config.wandb.name = f"vae_{dataset_name}_i{input_dim}_k{k}_z{config.model.latent_dim}_beta{config.model.kl_beta}"
             
             wandb_run = wandb.init(
                 project=config.wandb.project,
@@ -89,30 +112,10 @@ if __name__ == "__main__":
             config.wandb.enabled = False
     
     # Setup logging (creates out_dir)
-    config.model.name = f"vae_{dataset_name}_z{config.model.latent_dim}_beta{config.model.kl_beta}"
+    dataset_name = 'gaus' if 'gaussian' in config.data.data_dir else 'ber'
+    config.model.name = f"vae_{dataset_name}_i{input_dim}_k{k}_z{config.model.latent_dim}_beta{config.model.kl_beta}"
     setup_logging(config)
 
-    # Load training data
-    print(f"Loading dataset from {config.data.data_dir}")
-    data = load_and_split(
-        config.data.data_dir,
-        splits=(0.85, 0.0, 0.15),
-        seed=config.system.seed,
-        normalize=True,
-        save_manifest=True
-    )
-    
-    X_train = torch.tensor(data["X_train"], dtype=torch.float32)
-    y_train = torch.tensor(data["y_train"], dtype=torch.long)
-    X_test = torch.tensor(data["X_test"], dtype=torch.float32)
-    y_test = torch.tensor(data["y_test"], dtype=torch.long)
-    
-    print(f"Train set: {X_train.shape[0]} samples, {X_train.shape[1]} features")
-    print(f"Test set:  {X_test.shape[0]} samples")
-    # print(f"Classes:   {len(torch.unique(y_train))}")
-    print()
-
-    input_dim = X_train.shape[1]
 
     # Get model config and verify likelihood matches data type
     model_config = config.model 
